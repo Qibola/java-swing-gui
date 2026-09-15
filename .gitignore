@@ -1,0 +1,14 @@
+# Compiled class files
+*.class
+out/
+build/
+bin/
+
+# Packaged jars
+*.jar
+
+# Editor / OS noise
+.idea/
+*.iml
+.vscode/
+.DS_Store
