@@ -28,8 +28,9 @@ compile step easy to verify anywhere.
 ## Project layout
 
 ```
-src/        Java source files
-out/        compiled .class files (git-ignored)
+src/Main.java       creates and shows the JFrame
+src/AppPanel.java   the contents of the window, and their layout
+out/                compiled .class files (git-ignored)
 ```
 
 ## Notes to self
@@ -40,11 +41,20 @@ out/        compiled .class files (git-ignored)
   centres it.
 - `setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)` is what makes the X button
   actually stop the program.
+- A `JPanel` defaults to `FlowLayout`, so the layout manager has to be set
+  explicitly — usually by passing it to the constructor.
+- `BorderLayout` gives five regions (NORTH/SOUTH/EAST/WEST/CENTER), one
+  component each. The edges keep their preferred size; CENTER takes the rest,
+  so that is the region that grows when the window is resized.
+- `GridLayout` makes every cell identical in size. Good for a keypad, bad for
+  a form where one label is much longer than another.
+- `frame.setContentPane(panel)` swaps out the frame's default panel entirely,
+  which hands the whole window over to that panel's layout.
 
 ## Roadmap
 
 - [x] Day 1 — Scaffold: README, `.gitignore`, `Main.java` with a JFrame that compiles headless
-- [ ] Day 2 — Add a `JPanel` with a real layout manager (BorderLayout / GridLayout)
+- [x] Day 2 — Add a `JPanel` with a real layout manager (BorderLayout / GridLayout)
 - [ ] Day 3 — Add components: labels, a text field, and buttons
 - [ ] Day 4 — Event handling: wire a button's `ActionListener` to update the UI
 - [ ] Day 5 — A small feature: greeting generator or simple calculator
