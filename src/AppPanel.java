@@ -4,6 +4,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import java.awt.BorderLayout;
+import java.awt.event.ActionEvent;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -15,6 +16,8 @@ import java.awt.GridLayout;
  * Day 2 goal: take control of the layout with BorderLayout + GridLayout.
  * Day 3 goal: replace the placeholder cells with the components the app
  *             actually needs - labels, a text field, and buttons.
+ * Day 4 goal: make the buttons do something - attach ActionListeners that
+ *             read the text field and update the labels.
  *
  * The layout managers doing the work here:
  *
@@ -34,9 +37,9 @@ import java.awt.GridLayout;
  * each region of the outer BorderLayout holds a panel running its own layout
  * manager inside it.
  *
- * The interactive components are kept as fields rather than locals so Day 4
- * has something to attach an ActionListener to. Nothing is wired up yet -
- * clicking a button today does nothing, and that is on purpose.
+ * Keeping the interactive components as fields (rather than locals) is what
+ * makes Day 4 easy: the listeners can refer to them directly instead of
+ * walking the container hierarchy looking for them.
  */
 public class AppPanel extends JPanel {
 
@@ -48,10 +51,10 @@ public class AppPanel extends JPanel {
     /** Where the user types their name. */
     private final JTextField nameField = new JTextField(16);
 
-    /** Produces the greeting (wired up on Day 4). */
+    /** Produces the greeting. */
     private final JButton greetButton = new JButton("Greet");
 
-    /** Clears the field and the output (wired up on Day 4). */
+    /** Clears the field and the output. */
     private final JButton clearButton = new JButton("Clear");
 
     /** The label in the middle that will show the result. */
@@ -72,6 +75,58 @@ public class AppPanel extends JPanel {
         add(createHeader(), BorderLayout.NORTH);
         add(createCenter(), BorderLayout.CENTER);
         add(createBottom(), BorderLayout.SOUTH);
+
+        wireUpActions();
+    }
+
+    /**
+     * Day 4: connect the buttons to code.
+     *
+     * An ActionListener is a single-method interface, so a lambda works as one
+     * directly - `e -> ...` is the whole implementation. Swing calls it on the
+     * Event Dispatch Thread, which is exactly the thread allowed to change
+     * components, so the handlers can update labels without any extra
+     * ceremony. (The flip side: anything slow in here freezes the UI, because
+     * the EDT is also the thread that repaints the window.)
+     *
+     * Adding the same listener to the text field as to the Greet button means
+     * pressing Enter inside the field greets too, without duplicating logic.
+     */
+    private void wireUpActions() {
+        greetButton.addActionListener(this::onGreet);
+        nameField.addActionListener(this::onGreet);
+        clearButton.addActionListener(this::onClear);
+    }
+
+    /**
+     * Reads the name field and shows a greeting.
+     *
+     * The ActionEvent parameter carries which component fired and when. This
+     * handler does not need it, but the signature has to match the interface,
+     * so it stays.
+     */
+    private void onGreet(ActionEvent event) {
+        String name = nameField.getText().trim();
+
+        if (name.isEmpty()) {
+            outputLabel.setText("");
+            statusLabel.setText("Type a name first.");
+            // Moving focus where the user needs to act next is a small thing
+            // that makes a form feel much less clumsy.
+            nameField.requestFocusInWindow();
+            return;
+        }
+
+        outputLabel.setText("Hello, " + name + "!");
+        statusLabel.setText("Greeted " + name + ".");
+    }
+
+    /** Puts the panel back the way it started. */
+    private void onClear(ActionEvent event) {
+        nameField.setText("");
+        outputLabel.setText("");
+        statusLabel.setText("Ready");
+        nameField.requestFocusInWindow();
     }
 
     private JLabel createHeader() {

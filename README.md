@@ -21,11 +21,20 @@ java -cp out Main
 ```
 
 On a machine with a display this opens a small window with a name field, a
-Greet button and a Clear button. The buttons do not do anything yet — wiring
-them up is the next step. On a headless machine
+Greet button and a Clear button. Type a name and press Greet (or just hit
+Enter in the field) and the greeting appears; Clear puts everything back.
+On a headless machine
 (a server or container with no display) `Main` prints a message and exits
-cleanly instead of crashing with `HeadlessException` — which makes the
-compile step easy to verify anywhere.
+cleanly instead of crashing with `HeadlessException` — and it now clicks the
+buttons via `doClick()` and asserts on the results, so the behaviour is
+verified too, not just the compile.
+
+If a machine has the JRE but no `javac` binary, the compiler is often still
+in the runtime image and can be called directly:
+
+```bash
+java -m jdk.compiler/com.sun.tools.javac.Main -d out src/*.java
+```
 
 ## Project layout
 
@@ -64,12 +73,24 @@ out/                compiled .class files (git-ignored)
   from anywhere in the window.
 - Keeping components as fields (not locals) is what lets the next step attach
   listeners to them without digging through the container hierarchy.
+- `ActionListener` has exactly one method, so a lambda or a method reference
+  (`this::onGreet`) *is* an implementation — no anonymous class needed.
+- Swing calls listeners **on the EDT**, so a handler can update components
+  freely. The catch: the EDT also repaints the window, so slow work inside a
+  handler visibly freezes the UI.
+- A `JTextField` fires an ActionEvent when Enter is pressed in it. Handing it
+  the same listener as the Greet button gets Enter-to-submit for one line and
+  zero duplicated logic.
+- `button.doClick()` fires the listeners exactly as a real click does, and
+  needs no display — which is how the behaviour gets tested headlessly.
+- `requestFocusInWindow()` after an action puts the cursor where the user
+  needs it next; cheap, and the form feels much less clumsy for it.
 
 ## Roadmap
 
 - [x] Day 1 — Scaffold: README, `.gitignore`, `Main.java` with a JFrame that compiles headless
 - [x] Day 2 — Add a `JPanel` with a real layout manager (BorderLayout / GridLayout)
 - [x] Day 3 — Add components: labels, a text field, and buttons
-- [ ] Day 4 — Event handling: wire a button's `ActionListener` to update the UI
+- [x] Day 4 — Event handling: wire a button's `ActionListener` to update the UI
 - [ ] Day 5 — A small feature: greeting generator or simple calculator
 - [ ] Day 6 — Polish: input validation, window sizing, README build instructions

@@ -11,6 +11,8 @@ import java.awt.Dimension;
  *             only responsible for creating and showing the frame.
  * Day 3 goal: keep that split intact while AppPanel grows real components,
  *             and extend the headless check to cover them.
+ * Day 4 goal: the buttons now do something, so the headless check clicks them
+ *             and asserts on what changed.
  *
  * Two Swing rules worth remembering from the start:
  *   1. Build and show the UI on the Event Dispatch Thread (EDT).
@@ -86,12 +88,48 @@ public class Main {
         require(panel.getNameField().getText().isEmpty(), "name field should start empty");
         require(panel.getNameField().isEditable(), "name field should be editable");
 
-        // No listeners yet - that is Day 4's job. Asserting it keeps the
-        // roadmap honest about what today actually delivered.
-        require(panel.getGreetButton().getActionListeners().length == 0,
-                "Greet button already has a listener (that is Day 4's step)");
-
         System.out.println("Component check: name field, Greet/Clear buttons and labels are all present.");
+
+        checkBehaviour(panel);
+    }
+
+    /**
+     * Day 4: exercise the button handlers without a screen.
+     *
+     * JButton.doClick() fires the button's ActionListeners exactly as a real
+     * click would, and none of that needs a display - so the behaviour added
+     * today is genuinely testable on a headless box, not just compilable.
+     */
+    private static void checkBehaviour(AppPanel panel) {
+        require(panel.getGreetButton().getActionListeners().length == 1,
+                "Greet button should have exactly one listener");
+        require(panel.getClearButton().getActionListeners().length == 1,
+                "Clear button should have exactly one listener");
+        require(panel.getNameField().getActionListeners().length == 1,
+                "Enter in the name field should greet too");
+
+        // Empty input: no greeting, and the status line says why.
+        panel.getGreetButton().doClick();
+        require(panel.getOutputLabel().getText().isEmpty(),
+                "an empty name should not produce a greeting");
+        require("Type a name first.".equals(panel.getStatusLabel().getText()),
+                "an empty name should explain itself in the status line");
+
+        // A real name: the greeting appears, surrounding whitespace trimmed.
+        panel.getNameField().setText("  Alex  ");
+        panel.getGreetButton().doClick();
+        require("Hello, Alex!".equals(panel.getOutputLabel().getText()),
+                "expected a trimmed greeting, got: " + panel.getOutputLabel().getText());
+        require("Greeted Alex.".equals(panel.getStatusLabel().getText()),
+                "status line should confirm the greeting");
+
+        // Clear puts everything back to its starting state.
+        panel.getClearButton().doClick();
+        require(panel.getNameField().getText().isEmpty(), "Clear should empty the name field");
+        require(panel.getOutputLabel().getText().isEmpty(), "Clear should empty the output");
+        require("Ready".equals(panel.getStatusLabel().getText()), "Clear should reset the status line");
+
+        System.out.println("Behaviour check: Greet handles empty and real input, and Clear resets.");
     }
 
     private static void require(boolean condition, String message) {
