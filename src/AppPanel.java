@@ -1,32 +1,42 @@
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridLayout;
 
 /**
  * The main content panel for the app.
  *
- * Day 2 goal: stop letting the JFrame place things by accident and take
- * control of the layout.
+ * Day 2 goal: take control of the layout with BorderLayout + GridLayout.
+ * Day 3 goal: replace the placeholder cells with the components the app
+ *             actually needs - labels, a text field, and buttons.
  *
- * Two layout managers are doing the work here:
+ * The layout managers doing the work here:
  *
- *   BorderLayout — divides a container into five regions: NORTH, SOUTH,
- *   EAST, WEST and CENTER. Only one component fits per region. The edges
- *   keep their preferred size and CENTER soaks up whatever space is left,
- *   which is why the header and footer stay thin while the middle grows
- *   when the window is resized.
+ *   BorderLayout - five regions (NORTH, SOUTH, EAST, WEST, CENTER), one
+ *   component each. The edges keep their preferred size and CENTER soaks up
+ *   whatever is left, which is why the header and the button bar stay thin
+ *   while the middle grows when the window is resized.
  *
- *   GridLayout — splits a container into equal-sized cells, filled left to
- *   right, top to bottom. Every cell is exactly the same size no matter what
- *   is inside it, so it is the right tool for something like a keypad and the
- *   wrong tool for a form with a long label next to a short one.
+ *   GridLayout - equal-sized cells filled left to right. Used for the single
+ *   form row so the label and the text field line up predictably.
  *
- * Splitting the UI into its own JPanel subclass (rather than piling
- * components onto the JFrame) keeps Main.java about *showing* a window and
- * this file about *what is in it* — which is what makes Day 3's components
- * easy to drop in.
+ *   FlowLayout - lays components out in a row at their preferred size. The
+ *   right tool for a button bar, because buttons should stay button-sized
+ *   instead of being stretched to fill a whole region.
+ *
+ * Nesting panels is the usual Swing answer to "I need more than five slots":
+ * each region of the outer BorderLayout holds a panel running its own layout
+ * manager inside it.
+ *
+ * The interactive components are kept as fields rather than locals so Day 4
+ * has something to attach an ActionListener to. Nothing is wired up yet -
+ * clicking a button today does nothing, and that is on purpose.
  */
 public class AppPanel extends JPanel {
 
@@ -34,6 +44,21 @@ public class AppPanel extends JPanel {
     // a serializable class has no version id. Swing UIs are never really
     // serialised in practice, but declaring it keeps the build warning-free.
     private static final long serialVersionUID = 1L;
+
+    /** Where the user types their name. */
+    private final JTextField nameField = new JTextField(16);
+
+    /** Produces the greeting (wired up on Day 4). */
+    private final JButton greetButton = new JButton("Greet");
+
+    /** Clears the field and the output (wired up on Day 4). */
+    private final JButton clearButton = new JButton("Clear");
+
+    /** The label in the middle that will show the result. */
+    private final JLabel outputLabel = new JLabel("", JLabel.CENTER);
+
+    /** The thin status line along the bottom of the window. */
+    private final JLabel statusLabel = new JLabel("Ready", JLabel.LEFT);
 
     public AppPanel() {
         // A JPanel defaults to FlowLayout, so the layout must be set explicitly.
@@ -45,37 +70,103 @@ public class AppPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         add(createHeader(), BorderLayout.NORTH);
-        add(createGrid(), BorderLayout.CENTER);
-        add(createFooter(), BorderLayout.SOUTH);
+        add(createCenter(), BorderLayout.CENTER);
+        add(createBottom(), BorderLayout.SOUTH);
     }
 
     private JLabel createHeader() {
         JLabel header = new JLabel("Swing Practice", JLabel.CENTER);
         // deriveFont keeps the platform's font family and only changes the
         // style/size, so the app still looks native on every OS.
-        header.setFont(header.getFont().deriveFont(java.awt.Font.BOLD, 18f));
+        header.setFont(header.getFont().deriveFont(Font.BOLD, 18f));
         return header;
     }
 
-    /**
-     * A 2x2 grid of placeholder cells. Real components arrive on Day 3 — for
-     * now these just make the grid visible so the layout can be checked.
-     */
-    private JPanel createGrid() {
-        JPanel grid = new JPanel(new GridLayout(2, 2, 8, 8));
-        for (int i = 1; i <= 4; i++) {
-            JLabel cell = new JLabel("Cell " + i, JLabel.CENTER);
-            cell.setBorder(BorderFactory.createLineBorder(java.awt.Color.LIGHT_GRAY));
-            cell.setOpaque(true);
-            grid.add(cell);
-        }
-        return grid;
+    /** The middle of the window: a form row on top, the output area below. */
+    private JPanel createCenter() {
+        JPanel center = new JPanel(new BorderLayout(8, 8));
+        center.add(createFormRow(), BorderLayout.NORTH);
+        center.add(createOutputArea(), BorderLayout.CENTER);
+        return center;
     }
 
-    private JLabel createFooter() {
-        JLabel footer = new JLabel("Ready", JLabel.LEFT);
-        footer.setFont(footer.getFont().deriveFont(java.awt.Font.PLAIN, 11f));
-        footer.setForeground(java.awt.Color.DARK_GRAY);
-        return footer;
+    /**
+     * One labelled input: "Your name:" next to a text field.
+     *
+     * setLabelFor is the bit that is easy to skip and worth doing - it ties
+     * the label to the field so screen readers announce them together, and so
+     * the mnemonic (Alt+N here) moves focus into the field rather than just
+     * underlining a letter.
+     */
+    private JPanel createFormRow() {
+        JLabel nameLabel = new JLabel("Your name:", JLabel.RIGHT);
+        nameLabel.setDisplayedMnemonic('N');
+        nameLabel.setLabelFor(nameField);
+
+        // A tooltip is one line of code and makes the UI explain itself.
+        nameField.setToolTipText("Type a name, then press Greet");
+
+        JPanel row = new JPanel(new GridLayout(1, 2, 8, 0));
+        row.add(nameLabel);
+        row.add(nameField);
+        return row;
+    }
+
+    /**
+     * The result area. An empty JLabel has almost no preferred height, which
+     * would make the window jump in size the moment text appeared, so the
+     * border reserves that space up front.
+     */
+    private JPanel createOutputArea() {
+        outputLabel.setFont(outputLabel.getFont().deriveFont(Font.PLAIN, 16f));
+        outputLabel.setBorder(BorderFactory.createEmptyBorder(16, 8, 16, 8));
+
+        JPanel area = new JPanel(new BorderLayout());
+        area.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+        area.add(outputLabel, BorderLayout.CENTER);
+        return area;
+    }
+
+    /**
+     * The bottom strip: a right-aligned button bar with the status line
+     * tucked underneath it.
+     */
+    private JPanel createBottom() {
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        greetButton.setMnemonic('G');
+        clearButton.setMnemonic('C');
+        buttons.add(clearButton);
+        buttons.add(greetButton);
+
+        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.PLAIN, 11f));
+        statusLabel.setForeground(Color.DARK_GRAY);
+
+        JPanel bottom = new JPanel(new BorderLayout(0, 6));
+        bottom.add(buttons, BorderLayout.NORTH);
+        bottom.add(statusLabel, BorderLayout.SOUTH);
+        return bottom;
+    }
+
+    // --- Accessors, so Day 4 can wire up behaviour without reaching into the
+    // --- layout to hunt for components.
+
+    public JTextField getNameField() {
+        return nameField;
+    }
+
+    public JButton getGreetButton() {
+        return greetButton;
+    }
+
+    public JButton getClearButton() {
+        return clearButton;
+    }
+
+    public JLabel getOutputLabel() {
+        return outputLabel;
+    }
+
+    public JLabel getStatusLabel() {
+        return statusLabel;
     }
 }

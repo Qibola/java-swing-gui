@@ -20,7 +20,9 @@ javac -d out src/*.java
 java -cp out Main
 ```
 
-On a machine with a display this opens a small window. On a headless machine
+On a machine with a display this opens a small window with a name field, a
+Greet button and a Clear button. The buttons do not do anything yet — wiring
+them up is the next step. On a headless machine
 (a server or container with no display) `Main` prints a message and exits
 cleanly instead of crashing with `HeadlessException` — which makes the
 compile step easy to verify anywhere.
@@ -50,12 +52,24 @@ out/                compiled .class files (git-ignored)
   a form where one label is much longer than another.
 - `frame.setContentPane(panel)` swaps out the frame's default panel entirely,
   which hands the whole window over to that panel's layout.
+- A `JTextField(16)` sizes itself by *columns*, not pixels, so the field stays
+  sensible whatever font the platform uses.
+- `label.setLabelFor(field)` is worth the one line: it pairs the two for screen
+  readers and makes the label's mnemonic (Alt+N) jump focus into the field.
+- `FlowLayout` is the right layout for a button bar — it leaves buttons at their
+  preferred size instead of stretching them the way BorderLayout would.
+- More than five things to place? Nest panels. Each BorderLayout region can hold
+  a panel that runs its own layout manager inside it.
+- `frame.getRootPane().setDefaultButton(button)` makes Enter trigger that button
+  from anywhere in the window.
+- Keeping components as fields (not locals) is what lets the next step attach
+  listeners to them without digging through the container hierarchy.
 
 ## Roadmap
 
 - [x] Day 1 — Scaffold: README, `.gitignore`, `Main.java` with a JFrame that compiles headless
 - [x] Day 2 — Add a `JPanel` with a real layout manager (BorderLayout / GridLayout)
-- [ ] Day 3 — Add components: labels, a text field, and buttons
+- [x] Day 3 — Add components: labels, a text field, and buttons
 - [ ] Day 4 — Event handling: wire a button's `ActionListener` to update the UI
 - [ ] Day 5 — A small feature: greeting generator or simple calculator
 - [ ] Day 6 — Polish: input validation, window sizing, README build instructions
