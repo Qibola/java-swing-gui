@@ -1,5 +1,6 @@
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
@@ -18,6 +19,9 @@ import java.awt.GridLayout;
  *             actually needs - labels, a text field, and buttons.
  * Day 4 goal: make the buttons do something - attach ActionListeners that
  *             read the text field and update the labels.
+ * Day 5 goal: the feature itself - a style drop-down, with the wording of
+ *             each greeting delegated to the Greetings class so the panel
+ *             stays responsible only for input and display.
  *
  * The layout managers doing the work here:
  *
@@ -50,6 +54,10 @@ public class AppPanel extends JPanel {
 
     /** Where the user types their name. */
     private final JTextField nameField = new JTextField(16);
+
+    /** Picks which style of greeting to produce. */
+    private final JComboBox<Greetings.Style> styleBox =
+            new JComboBox<>(Greetings.Style.values());
 
     /** Produces the greeting. */
     private final JButton greetButton = new JButton("Greet");
@@ -117,13 +125,20 @@ public class AppPanel extends JPanel {
             return;
         }
 
-        outputLabel.setText("Hello, " + name + "!");
-        statusLabel.setText("Greeted " + name + ".");
+        // The clock is read here, in the UI layer, and passed in. Greetings
+        // itself stays a pure function of its arguments, which is what makes
+        // it testable at any time of day.
+        Greetings.Style style = (Greetings.Style) styleBox.getSelectedItem();
+        int hour = java.time.LocalTime.now().getHour();
+
+        outputLabel.setText(Greetings.greet(name, style, hour));
+        statusLabel.setText("Greeted " + name + " (" + style + ").");
     }
 
     /** Puts the panel back the way it started. */
     private void onClear(ActionEvent event) {
         nameField.setText("");
+        styleBox.setSelectedIndex(0);
         outputLabel.setText("");
         statusLabel.setText("Ready");
         nameField.requestFocusInWindow();
@@ -161,9 +176,19 @@ public class AppPanel extends JPanel {
         // A tooltip is one line of code and makes the UI explain itself.
         nameField.setToolTipText("Type a name, then press Greet");
 
-        JPanel row = new JPanel(new GridLayout(1, 2, 8, 0));
+        JLabel styleLabel = new JLabel("Greeting style:", JLabel.RIGHT);
+        styleLabel.setDisplayedMnemonic('S');
+        styleLabel.setLabelFor(styleBox);
+        styleBox.setToolTipText("Pick how the greeting should be worded");
+
+        // Two rows now, so GridLayout gets a second row rather than a second
+        // nested panel: every cell is the same size, which is exactly what
+        // keeps the two labels and the two inputs in line with each other.
+        JPanel row = new JPanel(new GridLayout(2, 2, 8, 6));
         row.add(nameLabel);
         row.add(nameField);
+        row.add(styleLabel);
+        row.add(styleBox);
         return row;
     }
 
@@ -207,6 +232,10 @@ public class AppPanel extends JPanel {
 
     public JTextField getNameField() {
         return nameField;
+    }
+
+    public JComboBox<Greetings.Style> getStyleBox() {
+        return styleBox;
     }
 
     public JButton getGreetButton() {

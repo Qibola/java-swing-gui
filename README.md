@@ -21,7 +21,7 @@ java -cp out Main
 ```
 
 On a machine with a display this opens a small window with a name field, a
-Greet button and a Clear button. Type a name and press Greet (or just hit
+greeting-style drop-down, a Greet button and a Clear button. Type a name and press Greet (or just hit
 Enter in the field) and the greeting appears; Clear puts everything back.
 On a headless machine
 (a server or container with no display) `Main` prints a message and exits
@@ -41,6 +41,7 @@ java -m jdk.compiler/com.sun.tools.javac.Main -d out src/*.java
 ```
 src/Main.java       creates and shows the JFrame
 src/AppPanel.java   the contents of the window, and their layout
+src/Greetings.java  the greeting wording - plain Java, no Swing
 out/                compiled .class files (git-ignored)
 ```
 
@@ -85,6 +86,18 @@ out/                compiled .class files (git-ignored)
   needs no display — which is how the behaviour gets tested headlessly.
 - `requestFocusInWindow()` after an action puts the cursor where the user
   needs it next; cheap, and the form feels much less clumsy for it.
+- Keep the *logic* out of the listener. `Greetings.greet(name, style, hour)`
+  is a plain static method with no Swing imports, so it can be checked by
+  comparing strings — no panel, no events, no display.
+- Pass the clock in rather than calling `LocalTime.now()` inside the logic.
+  A method handed the hour gives the same answer every run; a method that
+  reads the clock gives a different one depending on when the tests run.
+- `JComboBox` renders items with `toString()`, so giving the enum constants a
+  display label is enough for a tidy drop-down — no `ListCellRenderer` needed.
+- A `switch` over an enum should still have a `default` that throws. Add a new
+  constant later and it fails loudly instead of quietly returning null.
+- `GridLayout(2, 2, ...)` was all the second form row needed. Equal cells are
+  the whole reason the two labels and the two inputs stay aligned.
 
 ## Roadmap
 
@@ -92,5 +105,5 @@ out/                compiled .class files (git-ignored)
 - [x] Day 2 — Add a `JPanel` with a real layout manager (BorderLayout / GridLayout)
 - [x] Day 3 — Add components: labels, a text field, and buttons
 - [x] Day 4 — Event handling: wire a button's `ActionListener` to update the UI
-- [ ] Day 5 — A small feature: greeting generator or simple calculator
+- [x] Day 5 — A small feature: greeting generator or simple calculator
 - [ ] Day 6 — Polish: input validation, window sizing, README build instructions

@@ -13,6 +13,8 @@ import java.awt.Dimension;
  *             and extend the headless check to cover them.
  * Day 4 goal: the buttons now do something, so the headless check clicks them
  *             and asserts on what changed.
+ * Day 5 goal: a real feature - selectable greeting styles - with the wording
+ *             logic in Greetings, which is pure enough to test directly.
  *
  * Two Swing rules worth remembering from the start:
  *   1. Build and show the UI on the Event Dispatch Thread (EDT).
@@ -120,16 +122,61 @@ public class Main {
         panel.getGreetButton().doClick();
         require("Hello, Alex!".equals(panel.getOutputLabel().getText()),
                 "expected a trimmed greeting, got: " + panel.getOutputLabel().getText());
-        require("Greeted Alex.".equals(panel.getStatusLabel().getText()),
-                "status line should confirm the greeting");
+        require("Greeted Alex (Friendly).".equals(panel.getStatusLabel().getText()),
+                "status line should name the style used");
+
+        // Switching the drop-down changes the wording.
+        panel.getStyleBox().setSelectedItem(Greetings.Style.CASUAL);
+        panel.getGreetButton().doClick();
+        require(panel.getOutputLabel().getText().startsWith("Hey Alex"),
+                "casual style should change the wording, got: " + panel.getOutputLabel().getText());
 
         // Clear puts everything back to its starting state.
         panel.getClearButton().doClick();
         require(panel.getNameField().getText().isEmpty(), "Clear should empty the name field");
         require(panel.getOutputLabel().getText().isEmpty(), "Clear should empty the output");
         require("Ready".equals(panel.getStatusLabel().getText()), "Clear should reset the status line");
+        require(panel.getStyleBox().getSelectedIndex() == 0, "Clear should reset the style drop-down");
 
         System.out.println("Behaviour check: Greet handles empty and real input, and Clear resets.");
+
+        checkGreetings();
+    }
+
+    /**
+     * Day 5: the greeting logic lives outside Swing, so it can be checked
+     * without building a panel at all - no components, no event plumbing,
+     * just inputs and expected strings.
+     */
+    private static void checkGreetings() {
+        require("Hello, Sam!".equals(Greetings.greet("Sam", Greetings.Style.FRIENDLY, 9)),
+                "friendly greeting is wrong");
+        require(Greetings.greet("Sam", Greetings.Style.FORMAL, 9).startsWith("Good day, Sam."),
+                "formal greeting is wrong");
+        require(Greetings.greet("Sam", Greetings.Style.CASUAL, 9).startsWith("Hey Sam"),
+                "casual greeting is wrong");
+
+        // Because the hour is a parameter, every boundary is easy to pin down.
+        require("Good morning".equals(Greetings.partOfDay(0)), "midnight should be morning");
+        require("Good morning".equals(Greetings.partOfDay(11)), "11:00 should be morning");
+        require("Good afternoon".equals(Greetings.partOfDay(12)), "noon should be afternoon");
+        require("Good afternoon".equals(Greetings.partOfDay(17)), "17:00 should be afternoon");
+        require("Good evening".equals(Greetings.partOfDay(18)), "18:00 should be evening");
+        require("Good evening".equals(Greetings.partOfDay(23)), "23:00 should be evening");
+
+        require("Good evening, Sam!".equals(Greetings.greet("Sam", Greetings.Style.TIME_OF_DAY, 20)),
+                "time-of-day greeting is wrong");
+
+        // A blank name is rejected by the logic itself, not just by the UI.
+        boolean threw = false;
+        try {
+            Greetings.greet("   ", Greetings.Style.FRIENDLY, 9);
+        } catch (IllegalArgumentException expected) {
+            threw = true;
+        }
+        require(threw, "a blank name should be rejected");
+
+        System.out.println("Greetings check: all four styles and the hour boundaries are correct.");
     }
 
     private static void require(boolean condition, String message) {
