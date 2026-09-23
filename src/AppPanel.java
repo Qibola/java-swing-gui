@@ -4,6 +4,10 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.Color;
@@ -22,6 +26,9 @@ import java.awt.GridLayout;
  * Day 5 goal: the feature itself - a style drop-down, with the wording of
  *             each greeting delegated to the Greetings class so the panel
  *             stays responsible only for input and display.
+ * Day 6 goal: polish - real input validation (delegated to NameValidator),
+ *             an error colour on the status line, and a field that refuses
+ *             over-long input rather than complaining about it afterwards.
  *
  * The layout managers doing the work here:
  *
@@ -71,6 +78,13 @@ public class AppPanel extends JPanel {
     /** The thin status line along the bottom of the window. */
     private final JLabel statusLabel = new JLabel("Ready", JLabel.LEFT);
 
+    /** Normal status text: present but not shouting. */
+    private static final Color STATUS_COLOR = Color.DARK_GRAY;
+
+    /** Something the user has to fix. A darker red than Color.RED, which
+     *  is hard to read as small text on a light background. */
+    private static final Color ERROR_COLOR = new Color(0xB0, 0x00, 0x20);
+
     public AppPanel() {
         // A JPanel defaults to FlowLayout, so the layout must be set explicitly.
         // The two ints are the horizontal and vertical gaps, in pixels, that
@@ -116,9 +130,13 @@ public class AppPanel extends JPanel {
     private void onGreet(ActionEvent event) {
         String name = nameField.getText().trim();
 
-        if (name.isEmpty()) {
+        // One call covers empty, too-long and illegal-character input. The
+        // panel does not know or care which rule failed - it just shows the
+        // sentence it is handed.
+        String problem = NameValidator.validate(name);
+        if (problem != null) {
             outputLabel.setText("");
-            statusLabel.setText("Type a name first.");
+            showError(problem);
             // Moving focus where the user needs to act next is a small thing
             // that makes a form feel much less clumsy.
             nameField.requestFocusInWindow();
@@ -132,7 +150,24 @@ public class AppPanel extends JPanel {
         int hour = java.time.LocalTime.now().getHour();
 
         outputLabel.setText(Greetings.greet(name, style, hour));
-        statusLabel.setText("Greeted " + name + " (" + style + ").");
+        showStatus("Greeted " + name + " (" + style + ").");
+    }
+
+    /** Ordinary status text, in the quiet grey. */
+    private void showStatus(String message) {
+        statusLabel.setForeground(STATUS_COLOR);
+        statusLabel.setText(message);
+    }
+
+    /**
+     * Status text for something the user needs to fix. Colour alone is a poor
+     * signal - it is invisible to a colour-blind user and to a screen reader -
+     * so the message itself always says what went wrong; the red is only a
+     * second, faster hint on top of it.
+     */
+    private void showError(String message) {
+        statusLabel.setForeground(ERROR_COLOR);
+        statusLabel.setText(message);
     }
 
     /** Puts the panel back the way it started. */
@@ -140,7 +175,7 @@ public class AppPanel extends JPanel {
         nameField.setText("");
         styleBox.setSelectedIndex(0);
         outputLabel.setText("");
-        statusLabel.setText("Ready");
+        showStatus("Ready");
         nameField.requestFocusInWindow();
     }
 
@@ -174,7 +209,14 @@ public class AppPanel extends JPanel {
         nameLabel.setLabelFor(nameField);
 
         // A tooltip is one line of code and makes the UI explain itself.
-        nameField.setToolTipText("Type a name, then press Greet");
+        nameField.setToolTipText("Type a name, then press Greet (max "
+                + NameValidator.MAX_LENGTH + " characters)");
+
+        // Stopping the over-long input at the keystroke is friendlier than
+        // accepting it and then complaining: a DocumentFilter sits between the
+        // keyboard and the field's model and can simply decline the edit.
+        ((AbstractDocument) nameField.getDocument())
+                .setDocumentFilter(new MaxLengthFilter(NameValidator.MAX_LENGTH));
 
         JLabel styleLabel = new JLabel("Greeting style:", JLabel.RIGHT);
         styleLabel.setDisplayedMnemonic('S');
@@ -219,7 +261,7 @@ public class AppPanel extends JPanel {
         buttons.add(greetButton);
 
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.PLAIN, 11f));
-        statusLabel.setForeground(Color.DARK_GRAY);
+        statusLabel.setForeground(STATUS_COLOR);
 
         JPanel bottom = new JPanel(new BorderLayout(0, 6));
         bottom.add(buttons, BorderLayout.NORTH);
@@ -252,5 +294,47 @@ public class AppPanel extends JPanel {
 
     public JLabel getStatusLabel() {
         return statusLabel;
+    }
+
+    /**
+     * Caps how much text a field will hold.
+     *
+     * A DocumentFilter intercepts every change on its way into the document,
+     * so both typing (insertString/replace) and pasting go through it. Calling
+     * super.* lets the edit through; returning without calling it drops the
+     * edit silently, which is what keeps the field at its limit.
+     */
+    private static final class MaxLengthFilter extends DocumentFilter {
+
+        private final int max;
+
+        MaxLengthFilter(int max) {
+            this.max = max;
+        }
+
+        @Override
+        public void insertString(FilterBypass fb, int offset, String text, AttributeSet attr)
+                throws BadLocationException {
+            replace(fb, offset, 0, text, attr);
+        }
+
+        @Override
+        public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attr)
+                throws BadLocationException {
+            String incoming = text == null ? "" : text;
+            int resulting = fb.getDocument().getLength() - length + incoming.length();
+
+            if (resulting <= max) {
+                super.replace(fb, offset, length, incoming, attr);
+                return;
+            }
+
+            // Paste of something too long: keep the part that fits rather than
+            // rejecting the whole thing.
+            int room = max - (fb.getDocument().getLength() - length);
+            if (room > 0) {
+                super.replace(fb, offset, length, incoming.substring(0, room), attr);
+            }
+        }
     }
 }

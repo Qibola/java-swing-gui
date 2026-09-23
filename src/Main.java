@@ -15,6 +15,9 @@ import java.awt.Dimension;
  *             and asserts on what changed.
  * Day 5 goal: a real feature - selectable greeting styles - with the wording
  *             logic in Greetings, which is pure enough to test directly.
+ * Day 6 goal: polish - validation rules of their own (NameValidator), and
+ *             window sizing derived from the packed layout instead of
+ *             guessed at in pixels.
  *
  * Two Swing rules worth remembering from the start:
  *   1. Build and show the UI on the Event Dispatch Thread (EDT).
@@ -40,9 +43,26 @@ public class Main {
         // the window - a free keyboard shortcut that costs one line.
         frame.getRootPane().setDefaultButton(panel.getGreetButton());
 
-        frame.setPreferredSize(new Dimension(460, 320));
-        frame.setMinimumSize(new Dimension(360, 260));
+        // Sizing, in the order that actually behaves.
+        //
+        // pack() asks the layout managers how much room the contents need and
+        // sizes the window to exactly that. Calling setPreferredSize first (as
+        // this did until Day 6) overrides that answer with a guess in pixels,
+        // which goes wrong the moment a platform's font is bigger than the one
+        // the number was picked on.
         frame.pack();
+
+        // The packed size is the true minimum: shrink below it and components
+        // start getting clipped. Taking it from pack() rather than hard-coding
+        // it means the floor follows the layout instead of drifting from it.
+        frame.setMinimumSize(frame.getSize());
+
+        // Then open a little roomier than the bare minimum, so the output area
+        // has somewhere to put a long greeting without the window jumping.
+        frame.setSize(new Dimension(
+                Math.max(frame.getWidth(), 460),
+                Math.max(frame.getHeight(), 300)));
+
         frame.setLocationRelativeTo(null); // centre on screen
         return frame;
     }
@@ -141,6 +161,7 @@ public class Main {
         System.out.println("Behaviour check: Greet handles empty and real input, and Clear resets.");
 
         checkGreetings();
+        checkValidation(panel);
     }
 
     /**
@@ -177,6 +198,69 @@ public class Main {
         require(threw, "a blank name should be rejected");
 
         System.out.println("Greetings check: all four styles and the hour boundaries are correct.");
+    }
+
+    /**
+     * Day 6: the validation rules, checked directly and then through the UI.
+     *
+     * NameValidator is plain Java, so most of this is just calling a method
+     * and comparing strings. The last few lines matter more: they confirm the
+     * panel is actually wired to the validator, and that the document filter
+     * stops over-long input at the field rather than letting it through.
+     */
+    private static void checkValidation(AppPanel panel) {
+        require(NameValidator.validate("Alex") == null, "a plain name should be accepted");
+        require(NameValidator.validate("Mary-Jane O'Neill") == null,
+                "hyphens and apostrophes should be accepted");
+        require(NameValidator.validate("Zoë") == null, "accented letters should be accepted");
+
+        require(NameValidator.validate("") != null, "an empty name should be rejected");
+        require(NameValidator.validate("   ") != null, "a whitespace-only name should be rejected");
+        require(NameValidator.validate("Alex99") != null, "digits should be rejected");
+        require(NameValidator.validate("<script>") != null, "punctuation should be rejected");
+
+        String tooLong = repeat("a", NameValidator.MAX_LENGTH + 1);
+        require(NameValidator.validate(tooLong) != null, "an over-long name should be rejected");
+        require(NameValidator.validate(repeat("a", NameValidator.MAX_LENGTH)) == null,
+                "a name exactly at the limit should be accepted");
+
+        // Through the UI: a rejected name produces no greeting, and the status
+        // line both explains itself and changes colour.
+        panel.getNameField().setText("Alex99");
+        panel.getGreetButton().doClick();
+        require(panel.getOutputLabel().getText().isEmpty(),
+                "an invalid name should not produce a greeting");
+        require(panel.getStatusLabel().getText().contains("letters"),
+                "the status line should say what is wrong, got: " + panel.getStatusLabel().getText());
+        require(!java.awt.Color.DARK_GRAY.equals(panel.getStatusLabel().getForeground()),
+                "an error should change the status colour");
+
+        // ...and a good one afterwards clears the error state again.
+        panel.getNameField().setText("Alex");
+        panel.getGreetButton().doClick();
+        require("Hello, Alex!".equals(panel.getOutputLabel().getText()),
+                "a valid name after an invalid one should still greet");
+        require(java.awt.Color.DARK_GRAY.equals(panel.getStatusLabel().getForeground()),
+                "a successful greeting should restore the normal status colour");
+
+        // The document filter should cap the field itself, so the too-long
+        // case is prevented rather than merely reported.
+        panel.getNameField().setText(repeat("b", NameValidator.MAX_LENGTH + 20));
+        require(panel.getNameField().getText().length() == NameValidator.MAX_LENGTH,
+                "the field should cap input at " + NameValidator.MAX_LENGTH
+                        + ", got " + panel.getNameField().getText().length());
+
+        panel.getClearButton().doClick();
+        System.out.println("Validation check: names, limits and the error state all behave.");
+    }
+
+    /** String.repeat arrived in Java 11; this keeps the source usable on 8. */
+    private static String repeat(String s, int times) {
+        StringBuilder sb = new StringBuilder(s.length() * times);
+        for (int i = 0; i < times; i++) {
+            sb.append(s);
+        }
+        return sb.toString();
     }
 
     private static void require(boolean condition, String message) {

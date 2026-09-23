@@ -13,28 +13,51 @@ some components, a layout, and an event listener that ties a button to code.
 ## Build and run
 
 ```bash
-# compile into out/
-javac -d out src/*.java
+# compile into out/ (warnings on, so problems surface at build time)
+javac -Xlint:all -d out src/*.java
 
 # run
 java -cp out Main
 ```
 
-On a machine with a display this opens a small window with a name field, a
-greeting-style drop-down, a Greet button and a Clear button. Type a name and press Greet (or just hit
-Enter in the field) and the greeting appears; Clear puts everything back.
-On a headless machine
-(a server or container with no display) `Main` prints a message and exits
-cleanly instead of crashing with `HeadlessException` — and it now clicks the
-buttons via `doClick()` and asserts on the results, so the behaviour is
-verified too, not just the compile.
-
 If a machine has the JRE but no `javac` binary, the compiler is often still
 in the runtime image and can be called directly:
 
 ```bash
-java -m jdk.compiler/com.sun.tools.javac.Main -d out src/*.java
+java -m jdk.compiler/com.sun.tools.javac.Main -Xlint:all -d out src/*.java
 ```
+
+### On a desktop
+
+A small window opens with a name field, a greeting-style drop-down, and Greet
+and Clear buttons. Type a name and press Greet (or just hit Enter in the
+field) and the greeting appears; Clear puts everything back. Invalid input -
+blank, over-long, or containing digits or punctuation - shows a red message on
+the status line instead of a greeting. The field itself refuses to hold more
+than 40 characters, so the length rule is enforced as you type.
+
+Keyboard: `Alt+N` jumps to the name field, `Alt+S` to the style drop-down,
+`Alt+G` greets, `Alt+C` clears, and Enter greets from anywhere in the window.
+
+### On a headless machine
+
+A server or container with no display cannot open a window, so `Main` detects
+that and runs its built-in checks instead of crashing with `HeadlessException`.
+The checks build the panel, click the buttons with `doClick()`, and assert on
+the results, so `java -cp out Main` is effectively the test suite:
+
+```
+Headless environment detected - skipping window.
+AppPanel check: NORTH, CENTER and SOUTH are all filled.
+Component check: name field, Greet/Clear buttons and labels are all present.
+Behaviour check: Greet handles empty and real input, and Clear resets.
+Greetings check: all four styles and the hour boundaries are correct.
+Validation check: names, limits and the error state all behave.
+Compiled and ran successfully. Run this on a desktop to see the GUI.
+```
+
+Any failure throws `IllegalStateException` with the reason, and the exit code
+is non-zero - so this works as a CI step as-is.
 
 ## Project layout
 
@@ -42,6 +65,7 @@ java -m jdk.compiler/com.sun.tools.javac.Main -d out src/*.java
 src/Main.java       creates and shows the JFrame
 src/AppPanel.java   the contents of the window, and their layout
 src/Greetings.java  the greeting wording - plain Java, no Swing
+src/NameValidator.java  the input rules - also plain Java, no Swing
 out/                compiled .class files (git-ignored)
 ```
 
@@ -98,6 +122,24 @@ out/                compiled .class files (git-ignored)
   constant later and it fails loudly instead of quietly returning null.
 - `GridLayout(2, 2, ...)` was all the second form row needed. Equal cells are
   the whole reason the two labels and the two inputs stay aligned.
+- `setPreferredSize` on a frame *overrides* what `pack()` worked out, which
+  throws away the layout managers' answer in favour of a guess in pixels. Let
+  `pack()` size the window, then read `getSize()` back for the minimum — the
+  floor then follows the layout instead of drifting away from it.
+- A `DocumentFilter` sits between the keyboard and a text field's model, so it
+  catches typing *and* pasting. Call `super.replace(...)` to allow an edit;
+  just return to drop it. Capping length there beats validating afterwards —
+  the bad state never exists.
+- `insertString` and `replace` both need overriding, but `insertString` can
+  simply delegate to `replace` with a length of 0 and the rule lives once.
+- `Character.isLetter(c)` rather than `c >= 'a' && c <= 'z'`: it is true for
+  accented and non-Latin letters, so the form does not quietly reject "Zoë".
+- Return the error *message* from a validator instead of a boolean. The caller
+  then has nothing left to decide, and the wording stays in one place.
+- Colour is a second signal, never the only one. The status line says what is
+  wrong in words; the red just makes it faster to notice.
+- A validator that is plain Java can be tested by calling it. Most of Day 6's
+  checks are one line each precisely because none of them need a window.
 
 ## Roadmap
 
@@ -106,4 +148,6 @@ out/                compiled .class files (git-ignored)
 - [x] Day 3 — Add components: labels, a text field, and buttons
 - [x] Day 4 — Event handling: wire a button's `ActionListener` to update the UI
 - [x] Day 5 — A small feature: greeting generator or simple calculator
-- [ ] Day 6 — Polish: input validation, window sizing, README build instructions
+- [x] Day 6 — Polish: input validation, window sizing, README build instructions
+
+All six steps are done — the project is complete.
